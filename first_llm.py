@@ -1,8 +1,17 @@
 import os
+
+from dotenv import load_dotenv
 from openai import OpenAI
 
+load_dotenv()
+
+api_key = os.getenv("DEEPSEEK_API_KEY")
+
+if not api_key:
+    raise ValueError("未找到 DEEPSEEK_API_KEY，请检查项目根目录中的 .env 文件。")
+
 client = OpenAI(
-    api_key=os.environ.get("DEEPSEEK_API_KEY"),
+    api_key=api_key,
     base_url="https://api.deepseek.com",
 )
 
