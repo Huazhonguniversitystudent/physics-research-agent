@@ -2,9 +2,9 @@ import json
 import unittest
 from copy import deepcopy
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
-from src.agent import MAX_STEPS, run_agent
+from src.agent import MAX_STEPS, TOOL_FUNCTIONS, TOOLS, run_agent
 
 
 def tool_call(name, arguments, call_id="call_1"):
@@ -16,6 +16,22 @@ def response(*calls, text=""):
 
 
 class AgentLoopTests(unittest.TestCase):
+    def test_registered_tool_schemas_match_dispatch(self):
+        self.assertEqual({tool["name"] for tool in TOOLS}, set(TOOL_FUNCTIONS))
+        for tool in TOOLS:
+            parameters = tool["parameters"]
+            self.assertEqual(parameters["type"], "object")
+            self.assertTrue(set(parameters.get("required", [])).issubset(parameters["properties"]))
+
+    def test_private_paths_are_redacted_before_model_feedback(self):
+        client = Mock()
+        client.responses.create.side_effect = [response(tool_call("list_external_datasets", {})), response(text="完成")]
+        with patch("src.agent.execute_tool", return_value={"note": "C:/Users/private/data.csv"}):
+            run_agent("列出数据", client=client, show_steps=False)
+        output = client.responses.create.call_args.kwargs["input"][-1]["output"]
+        self.assertNotIn("C:/Users", output)
+        self.assertIn("隐藏", output)
+
     def test_direct_answer(self):
         client = Mock()
         client.responses.create.return_value = response(text="瑞利散射")

@@ -20,6 +20,8 @@
 - 科研 CSV 结构与缺失值检查
 - switching time 线性插值计算
 - 多曲线科研绘图
+- 本地真实数据注册、微磁学列识别、时间单位转换
+- 两条真实曲线比较、指定时间取值、磁化曲线摘要
 
 ## Day 1
 
@@ -69,6 +71,32 @@ t_switch = t1 + (0 - m1) * (t2 - t1) / (m2 - m1)
 
 六个真实 API Demo 与本地测试结果见 [Day 3 验收记录](docs/Day3_Verification.md)。
 
+## 真实科研数据支持
+
+Day 4 使用 `config/data_sources.local.json` 注册外部 CSV。公开仓库不包含真实科研原始数据、本地配置或真实科研 PNG；注册工具只接受 alias，不接受模型提供的任意路径。
+
+复制 `config/data_sources.example.json` 为 `config/data_sources.local.json`，再用自己的路径替换占位符。例如：
+
+```json
+{
+  "my_dataset": {
+    "path": "C:\\path\\to\\data.csv",
+    "type": "micromagnetics",
+    "description": "本地科研曲线"
+  }
+}
+```
+
+两份原始 CSV 可以分别注册，再用 `"datasets": ["first_alias", "second_alias"]` 注册一个组合 alias。为单曲线配置不同 `label`，必要时显式设置 `time_column`、`mz_columns`、`time_unit`。组合内部统一为 `time/mz/source`，不合并时间网格，不预先重采样。
+
+支持 UTF-8、UTF-8 BOM、GBK/CP936 和逗号、制表符、分号。列名先精确匹配再规范化匹配；歧义需指定列。时间单位支持 s/ns/ps，无法识别时返回 `unknown`，绝不默认 ps。
+
+已接入真实 MuMax3/COMSOL 粗网格固定电流曲线；`fem_fdm_j25` 是两份原始曲线的组合。发现的汇总表不是时间序列，不把它伪装成曲线来算过零时间。
+
+`sample_value_at_time` 支持 nearest/linear，默认 linear，禁止外推。曲线摘要返回初末值、极值、负到正 crossing 数和首个过零时间；过零不代表磁化已经达到 +1。
+
+说明见 [Day 4 学习文档](docs/Day4_Real_Scientific_Data.md)、[真实数据验收](docs/Day4_Real_Data_Validation.md)、[Day 1–4 自包含总结](docs/Day1-4_学习总结.md)。
+
 ## 项目结构
 
 ```text
@@ -79,7 +107,8 @@ physics-research-agent/
 ├── requirements.txt
 ├── main.py                      # Day 1 Python 基础练习
 ├── first_llm.py                 # Day 1 LLM 调用
-├── run_agent.py                 # Day 3 CLI 入口
+├── run_agent.py                 # Day 4 CLI 入口
+├── config/                     # example 模板可提交；local 注册表不提交
 ├── data/
 │   ├── examples/                # 可公开的 SYNTHETIC CSV 与说明
 │   └── local/                   # 私有本地数据，仅提交 .gitkeep
@@ -98,12 +127,18 @@ physics-research-agent/
 │       ├── __init__.py
 │       ├── calculator.py        # 安全数学计算
 │       ├── physics.py           # 电子能量计算
-│       └── scientific_data.py   # CSV 检查、插值与绘图
+│       ├── scientific_data.py   # 仓库 CSV、统一绘图入口
+│       ├── curve_analysis.py    # 共享 crossing 算法
+│       ├── data_sources.py      # 本地 registry 与鲁棒读取
+│       └── micromagnetics.py    # 格式标准化与高层分析
 └── tests/
     ├── test_agent.py
     ├── test_calculator.py
     ├── test_physics.py
-    └── test_scientific_data.py
+    ├── test_scientific_data.py
+    ├── test_data_sources.py
+    ├── test_micromagnetics.py
+    └── fixtures/                # 仅小型 synthetic 数据
 ```
 
 ## 快速开始
@@ -133,6 +168,8 @@ python -m unittest discover -s tests -v
 
 请勿提交 `.env`，也不要在代码、日志或截图中公开 API Key。
 
+若 PowerShell 中 `conda activate agent` 被激活脚本拦住，可以运行 `conda run --no-capture-output -n agent python run_agent.py`。当前 61 项单元测试使用合成 fixture，不要求本机拥有真实科研目录；另已完成八个真实 DeepSeek CLI Demo。
+
 可重复生成合成数据：
 
 ```powershell
@@ -146,6 +183,11 @@ python scripts/generate_synthetic_data.py
 - 比较 synthetic_micromagnetics.csv 中 MuMax3 和 COMSOL 的翻转时间。
 - 把 mumax3_mz 和 comsol_mz 随 time_ps 的变化画在一张图里。
 - 一个电子经过 5 V 电势差后获得多少能量？请给出 eV 和 J。
+- 有哪些本地真实科研数据可以分析？
+- 检查 fem_fdm_j25 数据集的结构。
+- 比较 fem_fdm_j25 中 MuMax3 和 COMSOL 的 switching time。
+- 告诉我 fem_fdm_j25 中 100 ps 时 MuMax3 和 COMSOL 的 mz。
+- 画出 fem_fdm_j25 中 MuMax3 和 COMSOL 的 mz(t) 对比图。
 
 终端显示工具名、参数和简短结果。CSV 检查只返回前 5 行，不打印完整文件；绘图结果返回类似 `outputs/plots/synthetic_mz_comparison.png` 的路径。
 
@@ -157,6 +199,10 @@ python scripts/generate_synthetic_data.py
 - 若两个目录有同名 CSV，使用 `examples/文件名.csv` 或 `local/文件名.csv` 明确选择。
 - 输出名受白名单限制，PNG 只保存到 `outputs/plots/`，运行结果不自动提交。
 - calculator 使用 AST 白名单，不执行任意 `eval()`。
+- 外部 CSV 例外通过本地注册表精确授权；模型只能传 alias。拒绝路径穿越、非 CSV 和最终路径偏移，不自动扫描新文件加入授权。
+- `config/data_sources.local.json`、`.env`、私有数据、`outputs/` 均不提交；外部源只读，图只写项目输出目录。
+- 工具结果返回文件名、摘要和少量预览，不返回注册绝对路径；预览、描述、错误回传中的常见绝对路径会被隐藏。这不是生产级脱敏系统，敏感内容仍需自己审查。
+- 调用 DeepSeek 会发送必要摘要与分析结果；忽略 Git 不等于完全离线或完全保密。
 
 ## 技术栈
 
@@ -177,7 +223,7 @@ python scripts/generate_synthetic_data.py
 - [x] switching time
 - [x] 科研绘图
 - [ ] 多轮上下文
-- [ ] 真实 MuMax3 / COMSOL 数据适配
+- [x] 真实 MuMax3 / COMSOL CSV 数据适配与结果复现
 - [ ] PDF
 - [ ] RAG
 - [ ] 文献检索

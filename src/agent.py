@@ -7,6 +7,8 @@ from openai import OpenAI
 
 from src.tools.calculator import calculate
 from src.tools.physics import electron_energy_from_voltage
+from src.tools.data_sources import inspect_external_dataset, list_external_datasets, redact_result
+from src.tools.micromagnetics import compare_switching_times, sample_value_at_time, summarize_magnetization_curve
 from src.tools.scientific_data import (
     calculate_switching_time,
     inspect_dataset,
@@ -22,11 +24,15 @@ SYSTEM_INSTRUCTIONS = (
     "你是面向物理科研学习者的助手。概念解释应直接回答，不要为了补充数值例子而调用工具。"
     "只有用户明确要求数值结果，或不计算就无法完成任务时，才调用合适的工具；"
     "需要计算时不要心算或编造工具结果。"
-    "分析 CSV 前先 inspect_dataset 确认结构，不知道数据集时先 list_datasets。"
+    "分析前先检查结构：仓库 CSV 用 inspect_dataset，注册的真实 alias 用 inspect_external_dataset；"
+    "不知 alias 时先 list_external_datasets，仓库示例用 list_datasets。外部工具只接受 alias，不返回真实绝对路径。"
     "不得编造数据或列名，缺失数据时明确无法确定；区分合成演示和本地数据。"
     "遵循工具中的 data_note 和 sorting_note；过零时间不代表磁化已达到 +1。"
     "不要推断数据没有支持的物理机制或模拟软件差异。"
-    "科研回答简要包含来源、方法、结果和解释，差值也用 calculator 计算。"
+    "科研回答包含来源、方法、数值、单位及是否插值；unknown 单位不得猜测。工具已返回的差值无需重复计算。"
+    "compare/sample/summarize 仅接收注册 alias；仓库 CSV 用 inspect_dataset、calculate_switching_time、plot_dataset。"
+    "不新增工具未返回的百分比或数值；采样行数相同不表示时间点相同。"
+    "组合真实曲线统一为 time/mz/source，按 sources 标签分别分析；100 ps 查询显式用 time_unit=ps。"
     "参数已确认的独立工具请求可同轮发出，尽量在 5 轮内完成任务。"
 )
 
@@ -99,16 +105,86 @@ TOOLS = [
     {
         "type": "function",
         "name": "plot_dataset",
-        "description": "根据 CSV 指定列绘图，将 PNG 保存到 outputs/plots，返回相对路径。",
+        "description": "绘制仓库 CSV 或注册外部 alias 的曲线，PNG 保存到 outputs/plots；组合数据使用 time 和 [mz]，自动按 source 分曲线。",
         "parameters": {
             "type": "object",
             "properties": {
-                "dataset": {"type": "string", "description": "允许目录内的 CSV 名称或相对路径。"},
+                "dataset": {"type": "string", "description": "仓库 CSV 或本地注册的外部 alias；禁止绝对路径。"},
                 "x_column": {"type": "string"},
                 "y_columns": {"type": "array", "items": {"type": "string"}, "minItems": 1},
                 "output_name": {"type": "string", "description": "仅字母、数字、下划线、连字符，可带 .png；不能包含路径。"},
             },
             "required": ["dataset", "x_column", "y_columns", "output_name"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "type": "function",
+        "name": "list_external_datasets",
+        "description": "列出用户本地注册的真实科研数据 alias 和是否存在，不返回绝对路径。",
+        "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
+    },
+    {
+        "type": "function",
+        "name": "inspect_external_dataset",
+        "description": "分析外部数据前确认 alias 的列、单位、结构、少量预览；组合数据标准化为 time/mz/source。",
+        "parameters": {
+            "type": "object",
+            "properties": {"dataset_name": {"type": "string", "description": "本地注册的 alias，不是路径。"}},
+            "required": ["dataset_name"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "type": "function",
+        "name": "compare_switching_times",
+        "description": "比较注册数据中的两列或两份组合原始曲线的首次负到正过零时间，线性插值并返回谁更早、差值及单位。",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "dataset_name": {"type": "string", "description": "list_external_datasets 中的注册 alias；不是仓库 CSV 文件名或路径。"},
+                "time_column": {"type": "string", "description": "可选；组合数据用 time，单文件用 inspect 确认的列名。"},
+                "mz_columns": {"type": "array", "items": {"type": "string"}, "description": "可选；单文件选择两列，组合数据用 [mz] 或省略。"},
+                "time_unit": {"type": "string", "enum": ["ps", "ns", "s", "unknown"], "description": "可选输出单位，已知单位会转换，未知单位需用户明确声明。"},
+            },
+            "required": ["dataset_name"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "type": "function",
+        "name": "sample_value_at_time",
+        "description": "查询注册曲线在指定时间的值，默认 linear，也可 nearest；禁止外推。组合曲线必须指定 source。",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "dataset_name": {"type": "string", "description": "list_external_datasets 中的注册 alias；不是仓库 CSV 文件名或路径。"},
+                "time_column": {"type": "string"},
+                "value_column": {"type": "string"},
+                "target_time": {"type": "number"},
+                "method": {"type": "string", "enum": ["nearest", "linear"]},
+                "source": {"type": "string", "description": "组合数据 inspect 返回的 sources 曲线标签。"},
+                "time_unit": {"type": "string", "enum": ["ps", "ns", "s", "unknown"], "description": "target_time 采用的单位；对已知原始单位做转换，未知时需明确声明。"},
+            },
+            "required": ["dataset_name", "target_time"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "type": "function",
+        "name": "summarize_magnetization_curve",
+        "description": "总结注册曲线的初值、末值、极值、负到正 crossing 数和首个过零时间，可查询 target_time。",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "dataset_name": {"type": "string", "description": "list_external_datasets 中的注册 alias；不是仓库 CSV 文件名或路径。"},
+                "time_column": {"type": "string"},
+                "mz_column": {"type": "string"},
+                "source": {"type": "string"},
+                "target_time": {"type": "number"},
+                "time_unit": {"type": "string", "enum": ["ps", "ns", "s", "unknown"]},
+            },
+            "required": ["dataset_name"],
             "additionalProperties": False,
         },
     },
@@ -121,6 +197,11 @@ TOOL_FUNCTIONS = {
     "inspect_dataset": inspect_dataset,
     "calculate_switching_time": calculate_switching_time,
     "plot_dataset": plot_dataset,
+    "list_external_datasets": list_external_datasets,
+    "inspect_external_dataset": inspect_external_dataset,
+    "compare_switching_times": compare_switching_times,
+    "sample_value_at_time": sample_value_at_time,
+    "summarize_magnetization_curve": summarize_magnetization_curve,
 }
 
 
@@ -179,7 +260,7 @@ def run_agent(
             except (json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
                 result = {"error": str(exc)}
 
-            result_text = json.dumps(result, ensure_ascii=False)
+            result_text = json.dumps(redact_result(result), ensure_ascii=False)
             if show_steps:
                 print(f"[Agent] 调用工具：{tool_call.name}")
                 print(f"[Agent] 参数：{tool_call.arguments}")

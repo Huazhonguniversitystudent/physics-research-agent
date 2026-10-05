@@ -1,0 +1,19 @@
+{
+  "my_dataset": {
+    "path": "C:\\path\\to\\your\\dataset.csv",
+    "type": "micromagnetics",
+    "description": "用户允许分析的本地 CSV",
+    "label": "My curve"
+  },
+  "another_dataset": {
+    "path": "C:\\path\\to\\another\\dataset.csv",
+    "type": "micromagnetics",
+    "description": "第二份独立时间序列",
+    "label": "Another curve"
+  },
+  "my_comparison": {
+    "datasets": ["my_dataset", "another_dataset"],
+    "type": "micromagnetics_comparison",
+    "description": "保留各自采样时间的组合曲线"
+  }
+}
