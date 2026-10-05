@@ -65,6 +65,8 @@ class MicromagneticTests(unittest.TestCase):
         self.assertAlmostEqual(linear["value"], -0.1)
         self.assertEqual(nearest["value"], -0.2)
         self.assertEqual(nearest["sample_time"], 1.0)
+        self.assertFalse(nearest["sorted"])
+        self.assertIn("无需重新排序", nearest["sorting_note"])
 
     def test_exact_sample_and_out_of_range(self):
         self.assertEqual(micromagnetics.sample_value_at_time("wide", "Time (ps)", "mumax3_mz", 2)["value"], 0.2)

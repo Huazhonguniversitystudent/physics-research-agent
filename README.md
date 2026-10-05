@@ -4,6 +4,8 @@
 
 一个面向物理科研场景的 AI Agent 学习与实践项目。
 
+截至 Day 5，项目已支持本地文档 RAG v1 与可核对行号引用；Day 1–4 学习记录中的“没有 RAG”是历史状态。
+
 ## 为什么做这个项目
 
 普通 LLM 主要生成文本；科研任务还需要读取数据、可靠计算和生成图像。本项目让模型选择工具，由 Python 执行实际分析，再根据真实结果形成科研解释，逐步构建一个可以展示“物理 + AI Agent”实践能力的研究助手。代码优先保持简单、可读。
@@ -97,7 +99,44 @@ Day 4 使用 `config/data_sources.local.json` 注册外部 CSV。公开仓库不
 
 说明见 [Day 4 学习文档](docs/Day4_Real_Scientific_Data.md)、[真实数据验收](docs/Day4_Real_Data_Validation.md)、[Day 1–4 自包含总结](docs/Day1-4_学习总结.md)。
 
+## RAG 文档检索
+
+RAG = Retrieval-Augmented Generation。当前流程是 Markdown/TXT → 按标题和行分块 → 字符级 TF-IDF → Top-K → 带真实行号的 citation/context → LLM grounded answer。
+
+当前 RAG v1 使用字符级 TF-IDF，**不是语义 embedding，不是向量数据库，也不是训练模型**。参数为 `analyzer="char"`、`ngram_range=(2,4)`；每节按完整行累计约 900 字符，节内 overlap 约 150 字符，保留标题层级。默认 top_k=4，允许 1–8，每份文档最多 2 个片段。
+
+相似度为 cosine similarity，当前 threshold=0.05，并要求查询 n-gram 词表覆盖率至少 0.50；去掉少量“项目文档/是什么/给出处”通用问句壳再计算。通过固定正负例校准，这是简单工程 baseline，不是严格置信概率。只有少数通用词匹配时不应编答案。
+
+索引既有六份 Day 2–4 中文 docs、Day 5 学习文档、knowledge/public 与 README；允许用户主动放置 knowledge/local 的 MD/TXT。每次检索从当前文件重建小索引，无磁盘数据库，避免旧缓存。Day5_Verification 和 Day1-5 总结属于本轮验收材料，不索引用来回答自身评估问题。
+
+```powershell
+conda run --no-capture-output -n agent python run_rag.py
+conda run --no-capture-output -n agent python scripts/evaluate_rag.py
+```
+
+前者只显示 rank/score/citation/heading/excerpt，不调用 DeepSeek，帮助区分 retrieval 与 generation。后者检查固定题的 expected source 是否进入 top-4，正例 Hit/Recall@4 与负例拒绝率分开，**不等于最终回答准确率**。评估题用于开发调参，不是独立测试集。
+
+## RAG 与科研 Tool 的分工
+
+“当前 fem_fdm_j25 重新计算是多少？” → 科研 Python tool；“文档中 Day 4 之前怎么记录？” → RAG。“普通物理概念是什么？”不必 RAG。由模型真正 Tool Calling 自主选择，未实现问题关键词硬路由。
+
+## 引用示例
+
+`[docs/Day2_Tool_Calling.md:L44-L70]` 对应真实“到底是谁执行 Python”一节。每个 chunk 的 citation 由实际文件和行号生成；模型只能使用本轮检索返回的引用。缺引用或伪造文件/行号时 warning 并拒绝该回答；该检查验证引用身份，不验证每句话的证据蕴含关系。无证据则明确拒答，不把常识包装成文档内容。
+
+## 知识库安全
+
+- docs/knowledge/public 可公开；knowledge/local 内容除 `.gitkeep` 外不提交。
+- loader 只读允许目录的 MD/TXT 与 README；不读 `.env`、注册表、真实 CSV、outputs，不扫描整机；拒绝符号链接偏移。
+- 文档是 UNTRUSTED DATA，不是指令；检索 context 用 `<retrieved_document>` 包裹并转义内容，不运行文档中的命令。
+- **Git 不提交私人文档 ≠ API 不会看到内容**。knowledge/local 的命中 chunk 可能发送到 DeepSeek，放置前必须确认允许 API 处理。今天只使用公开 repo docs。
+- 基础包装/提示/引用校验不是生产级防注入系统；模型解释仍需核对。
+
+完整解释见 [Day 5 学习文档](docs/Day5_RAG_and_Citations.md)，结果见 [Day 5 验收](docs/Day5_Verification.md)，自包含回顾见 [Day 1–5 总结](docs/Day1-5_学习总结.md)。
+
 ## 项目结构
+
+Day 5 新增 `src/rag/{documents,chunking,retriever,citations}.py`、`run_rag.py`、`scripts/evaluate_rag.py`、`tests/test_rag.py`、`tests/rag_eval_cases.json` 和 `knowledge/{public,local}/`。
 
 ```text
 physics-research-agent/
@@ -107,7 +146,7 @@ physics-research-agent/
 ├── requirements.txt
 ├── main.py                      # Day 1 Python 基础练习
 ├── first_llm.py                 # Day 1 LLM 调用
-├── run_agent.py                 # Day 4 CLI 入口
+├── run_agent.py                 # Day 5 CLI 入口
 ├── config/                     # example 模板可提交；local 注册表不提交
 ├── data/
 │   ├── examples/                # 可公开的 SYNTHETIC CSV 与说明
@@ -168,7 +207,7 @@ python -m unittest discover -s tests -v
 
 请勿提交 `.env`，也不要在代码、日志或截图中公开 API Key。
 
-若 PowerShell 中 `conda activate agent` 被激活脚本拦住，可以运行 `conda run --no-capture-output -n agent python run_agent.py`。当前 61 项单元测试使用合成 fixture，不要求本机拥有真实科研目录；另已完成八个真实 DeepSeek CLI Demo。
+若 PowerShell 中 `conda activate agent` 没有切换解释器，运行 `conda run --no-capture-output -n agent python run_agent.py`。测试只用项目文档、合成 fixture 和 mock API，不要求本机拥有真实科研目录。
 
 可重复生成合成数据：
 
@@ -225,6 +264,9 @@ python scripts/generate_synthetic_data.py
 - [ ] 多轮上下文
 - [x] 真实 MuMax3 / COMSOL CSV 数据适配与结果复现
 - [ ] PDF
-- [ ] RAG
+- [x] RAG v1：字符级 TF-IDF
+- [x] 来源行号引用与引用校验
+- [ ] embedding retrieval
+- [ ] Evaluation dashboard
 - [ ] 文献检索
 - [ ] Web UI

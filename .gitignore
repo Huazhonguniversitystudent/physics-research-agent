@@ -24,3 +24,5 @@ data/local/*
 outputs/*
 !outputs/.gitkeep
 config/data_sources.local.json
+knowledge/local/*
+!knowledge/local/.gitkeep

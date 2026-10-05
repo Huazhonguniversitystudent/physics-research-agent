@@ -148,16 +148,17 @@ def _sample(curve: pd.DataFrame, target_time: float, method: str) -> dict:
         raise ValueError("target_time 必须是有限数值。")
     numeric, was_sorted = prepare_curve(curve, "time", "mz")
     times, values = numeric["time"].tolist(), numeric["mz"].tolist()
+    sorting_info = {"sorted": was_sorted, "sorting_note": "已按时间重新排序。" if was_sorted else "输入时间已递增，无需重新排序。"}
     if not times[0] <= target_time <= times[-1]:
         raise ValueError("目标时间超出数据范围，禁止外推。")
     if method == "nearest" or target_time in times:
         index = min(range(len(times)), key=lambda index: abs(times[index] - target_time))
-        return {"value": values[index], "sample_time": times[index], "target_time": target_time, "method": method, "interpolated": False, "sorted": was_sorted}
+        return {"value": values[index], "sample_time": times[index], "target_time": target_time, "method": method, "interpolated": False, **sorting_info}
     for index in range(1, len(times)):
         t1, t2 = times[index - 1], times[index]
         if t1 < target_time < t2:
             value = values[index - 1] + (values[index] - values[index - 1]) * (target_time - t1) / (t2 - t1)
-            return {"value": value, "target_time": target_time, "method": method, "interpolated": True, "sorted": was_sorted, "bracket": {"t1": t1, "value1": values[index - 1], "t2": t2, "value2": values[index]}}
+            return {"value": value, "target_time": target_time, "method": method, "interpolated": True, **sorting_info, "bracket": {"t1": t1, "value1": values[index - 1], "t2": t2, "value2": values[index]}}
 
 
 def sample_value_at_time(dataset_name: str, time_column: str | None = None, value_column: str | None = None, target_time: float = 100, method: str = "linear", source: str | None = None, time_unit: str | None = None) -> dict:
@@ -180,5 +181,6 @@ def summarize_magnetization_curve(dataset_name: str, time_column: str | None = N
         "crossing_direction": "negative_to_positive",
         "first_switching_time": crossings["crossings"][0]["switching_time"] if crossings["crossings"] else None,
         "sorted": was_sorted,
+        "sorting_note": "已按时间重新排序。" if was_sorted else "输入时间已递增，无需重新排序。",
         "target_time_value": _sample(curve, target_time, "linear") if target_time is not None else None,
     }

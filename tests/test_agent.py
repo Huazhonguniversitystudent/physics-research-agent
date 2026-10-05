@@ -16,6 +16,25 @@ def response(*calls, text=""):
 
 
 class AgentLoopTests(unittest.TestCase):
+    def test_rag_fake_citation_is_rejected(self):
+        client = Mock()
+        client.responses.create.side_effect = [response(tool_call("search_knowledge_base", {"query": "Tool Calling"})), response(text="答案[docs/fake.md:L1-L2]")]
+        with patch("src.agent.execute_tool", return_value={"results": [{"citation": "[docs/a.md:L1-L2]"}]}):
+            self.assertIn("引用校验未通过", run_agent("给出处", client=client, show_steps=False))
+
+    def test_rag_without_evidence_cannot_use_model_knowledge(self):
+        client = Mock()
+        client.responses.create.side_effect = [response(tool_call("search_knowledge_base", {"query": "量子霍尔"})), response(text="擅自回答")]
+        with patch("src.agent.execute_tool", return_value={"found": False, "results": []}):
+            self.assertIn("没有足够证据", run_agent("根据文档", client=client, show_steps=False))
+
+    def test_rag_valid_citation_is_accepted(self):
+        client = Mock()
+        answer = "Python 执行工具。[docs/a.md:L1-L2]"
+        client.responses.create.side_effect = [response(tool_call("search_knowledge_base", {"query": "执行 Python"})), response(text=answer)]
+        with patch("src.agent.execute_tool", return_value={"results": [{"citation": "[docs/a.md:L1-L2]"}]}):
+            self.assertEqual(run_agent("给出处", client=client, show_steps=False), answer)
+
     def test_registered_tool_schemas_match_dispatch(self):
         self.assertEqual({tool["name"] for tool in TOOLS}, set(TOOL_FUNCTIONS))
         for tool in TOOLS:

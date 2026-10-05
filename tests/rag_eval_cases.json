@@ -1,0 +1,14 @@
+[
+  {"query": "Tool Calling 中真正执行 Python 的是谁？", "expected_sources": ["docs/Day2_Tool_Calling.md"]},
+  {"query": "为什么不能直接使用 eval？", "expected_sources": ["docs/Day2_Tool_Calling.md"]},
+  {"query": "switching time 是怎么定义和计算的？", "expected_sources": ["docs/Day3_Scientific_Data_Tools.md", "docs/Day4_Real_Scientific_Data.md"]},
+  {"query": "为什么不能把真实科研数据提交 GitHub？", "expected_sources": ["docs/Day4_Real_Scientific_Data.md", "docs/Day1-4_学习总结.md"]},
+  {"query": "Day 4 真实 MuMax3 和 COMSOL switching time 是多少？", "expected_sources": ["docs/Day4_Real_Data_Validation.md"]},
+  {"query": "两份真实曲线同样 101 行是否说明时间点相同？", "expected_sources": ["docs/Day4_Real_Data_Validation.md", "docs/Day4_Real_Scientific_Data.md"]},
+  {"query": "当前项目有 RAG 吗？", "expected_sources": ["README.md", "docs/Day5_RAG_and_Citations.md"]},
+  {"query": "项目文档有没有证明 COMSOL 比 MuMax3 更准确？", "expected_sources": ["docs/Day4_Real_Data_Validation.md", "docs/Day4_Real_Scientific_Data.md"]},
+  {"query": "项目文档有没有解释量子霍尔效应？", "expected_found": false},
+  {"query": "项目文档有没有给出 GPT-6 的训练参数？", "expected_found": false},
+  {"query": "量子霍尔效应是什么？", "expected_found": false},
+  {"query": "莫扎特歌剧魔笛剧情", "expected_found": false}
+]
