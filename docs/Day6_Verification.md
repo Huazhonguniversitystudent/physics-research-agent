@@ -108,6 +108,8 @@ Demo 5 的最终回答没有编出训练参数或电阻数值，保留了 Top-K 
 
 回答给出默认 RK45，引用 `[paper:mumax3:p12]`；独立报告 alias fem_fdm_j25 和两份粗网格原始曲线、相邻点插值方法及上述两个 ps 数值。没有把论文当成当前 CSV 实算，也明确当前片段不足以给约 1 ps 差异归因。
 
+最终提示下再次运行 Demo 3/4 与综合 Demo：p2/p12 引用仍通过；综合问题改为 list_papers + list_external → search + inspect → compare → 回答，共 5 个工具执行，仍在 5 轮内完成，得到约 73.84/72.82 ps。记录两次真实工具数量，不把工具调用次数误称为循环轮数。
+
 ## 测试与检查
 
 实际执行 `python -m unittest discover -s tests -v`：**105/105 通过**。原 Day 2–5 的 79 项保留；新增 PDF 22 项、Agent PDF/参数回传 4 项。全部测试无需 DeepSeek、公开论文下载或真实科研目录；fixture 由 PyMuPDF 动态在临时允许目录生成，四页自写中英文、注入文本、空页。没有第三方 fixture 内容。
@@ -130,4 +132,4 @@ Demo 5 的最终回答没有编出训练参数或电阻数值，保留了 Top-K 
 
 ## Git 交付
 
-保留原有历史，在 main 上创建功能与总结两次本地 commit；最终 hash 与 ahead 数在终端复核后汇报。未执行 push、同步、reset、rebase 或 force push。用户手动 push。
+功能 commit：`896a7d5 feat: 增加 PDF 论文 RAG 与页码引用`。保留原有历史，在 main 上创建功能与总结两次本地 commit；总结不嵌入自身 hash，最终 hash 与 ahead 数在终端复核后汇报。未执行 push、同步、reset、rebase 或 force push。用户手动 push。
