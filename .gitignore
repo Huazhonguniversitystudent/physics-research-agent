@@ -26,3 +26,7 @@ outputs/*
 config/data_sources.local.json
 knowledge/local/*
 !knowledge/local/.gitkeep
+!knowledge/local/papers/
+knowledge/local/papers/*
+!knowledge/local/papers/.gitkeep
+knowledge/public/papers/*.[pP][dD][fF]

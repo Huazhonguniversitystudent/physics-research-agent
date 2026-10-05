@@ -4,7 +4,8 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
 from src.rag.chunking import chunk_document
-from src.rag.documents import load_documents
+from src.rag.documents import PROJECT_ROOT, load_documents
+from src.rag.pdf_documents import load_pdf_documents
 from src.tools.data_sources import redact_result
 
 
@@ -45,6 +46,8 @@ class KnowledgeRetriever:
             for index in order:
                 if query_coverage >= MIN_QUERY_COVERAGE and scores[index] > 0 and scores[index] >= self.threshold:
                     source = self.chunks[index]["source"]
+                    if self.chunks[index]["source_type"] == "pdf":
+                        source = (source, self.chunks[index]["page_number"])
                     if source_counts.get(source, 0) >= 2:
                         continue
                     results.append({**self.chunks[index], "score": float(scores[index])})
@@ -65,6 +68,17 @@ class KnowledgeRetriever:
         return result
 
 
-def search_knowledge_base(query: str, top_k: int = 4) -> dict:
+def load_knowledge_documents(scope: str = "all", paper_id: str | None = None, project_root=PROJECT_ROOT) -> list[dict]:
+    if scope not in ("all", "project_docs", "papers"):
+        raise ValueError("scope 必须是 all、project_docs 或 papers。")
+    if paper_id is not None and scope != "papers":
+        raise ValueError("paper_id 仅适用于 papers scope。")
+    documents = load_documents(project_root) if scope != "papers" else []
+    if scope != "project_docs":
+        documents.extend(load_pdf_documents(project_root, paper_id))
+    return documents
+
+
+def search_knowledge_base(query: str, top_k: int = 4, scope: str = "all", paper_id: str | None = None) -> dict:
     # Small corpus: rebuild from current files, avoiding a stale on-disk index.
-    return KnowledgeRetriever(load_documents()).search(query, top_k)
+    return KnowledgeRetriever(load_knowledge_documents(scope, paper_id)).search(query, top_k)

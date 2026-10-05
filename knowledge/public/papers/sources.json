@@ -1,0 +1,11 @@
+[
+  {
+    "paper_id": "mumax3",
+    "title": "The design and verification of Mumax3",
+    "authors": ["Arne Vansteenkiste", "Jonathan Leliaert", "Mykola Dvornik", "Felipe Garcia-Sanchez", "Bartel Van Waeyenberge"],
+    "year": 2014,
+    "source_url": "https://arxiv.org/pdf/1406.7635v3",
+    "license_or_access_note": "publicly accessible source; license not verified",
+    "local_filename": "mumax3_design_v3.pdf"
+  }
+]

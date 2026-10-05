@@ -16,6 +16,33 @@ def response(*calls, text=""):
 
 
 class AgentLoopTests(unittest.TestCase):
+    def test_invalid_pdf_search_arguments_are_safe(self):
+        for raw in ("{", "[]"):
+            client = Mock()
+            call = tool_call("search_knowledge_base", {})
+            call.arguments = raw
+            client.responses.create.side_effect = [response(call), response(text="不应猜测")]
+            self.assertIn("没有足够证据", run_agent("根据论文", client=client, show_steps=False))
+
+    def test_pdf_fake_page_is_rejected(self):
+        client = Mock()
+        client.responses.create.side_effect = [response(tool_call("search_knowledge_base", {"query": "RK45", "scope": "papers"})), response(text="答案[paper:test:p99]")]
+        with patch("src.agent.execute_tool", return_value={"results": [{"citation": "[paper:test:p1]"}]}):
+            self.assertIn("引用校验未通过", run_agent("根据论文", client=client, show_steps=False))
+
+    def test_pdf_no_evidence_message(self):
+        client = Mock()
+        client.responses.create.side_effect = [response(tool_call("search_knowledge_base", {"query": "missing", "scope": "papers"})), response(text="编造答案")]
+        with patch("src.agent.execute_tool", return_value={"results": []}):
+            self.assertEqual(run_agent("根据论文", client=client, show_steps=False), "当前检索到的论文片段不足以支持这个结论。")
+
+    def test_pdf_valid_page_is_accepted(self):
+        client = Mock()
+        answer = "根据论文 [paper:test:p1]"
+        client.responses.create.side_effect = [response(tool_call("search_knowledge_base", {"query": "RK45", "scope": "papers"})), response(text=answer)]
+        with patch("src.agent.execute_tool", return_value={"results": [{"citation": "[paper:test:p1]"}]}):
+            self.assertEqual(run_agent("根据论文", client=client, show_steps=False), answer)
+
     def test_rag_fake_citation_is_rejected(self):
         client = Mock()
         client.responses.create.side_effect = [response(tool_call("search_knowledge_base", {"query": "Tool Calling"})), response(text="答案[docs/fake.md:L1-L2]")]

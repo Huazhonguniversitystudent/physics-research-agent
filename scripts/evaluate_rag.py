@@ -5,7 +5,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.rag.documents import load_documents
-from src.rag.retriever import KnowledgeRetriever
+from src.rag.retriever import KnowledgeRetriever, load_knowledge_documents
 
 
 def evaluate_cases(retriever: KnowledgeRetriever, cases: list[dict]) -> dict:
@@ -33,7 +33,8 @@ def evaluate_cases(retriever: KnowledgeRetriever, cases: list[dict]) -> dict:
 
 def main() -> None:
     path = Path(__file__).resolve().parents[1] / "tests/rag_eval_cases.json"
-    result = evaluate_cases(KnowledgeRetriever(load_documents()), json.loads(path.read_text(encoding="utf-8")))
+    documents = load_knowledge_documents("all") if "--include-papers" in sys.argv else load_documents()
+    result = evaluate_cases(KnowledgeRetriever(documents), json.loads(path.read_text(encoding="utf-8")))
     print(json.dumps(result, ensure_ascii=False, indent=2))
     if not all(case["passed"] for case in result["cases"]):
         raise SystemExit(1)

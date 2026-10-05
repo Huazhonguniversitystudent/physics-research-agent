@@ -21,7 +21,7 @@ def load_documents(project_root: Path = PROJECT_ROOT) -> list[dict]:
             if path.resolve() != path.absolute():
                 continue
             # Do not retrieve evaluation transcripts as evidence for their own tests.
-            if directory == "docs" and path.name in ("Day5_Verification.md", "Day1-5_学习总结.md"):
+            if directory == "docs" and path.name in ("Day5_Verification.md", "Day1-5_学习总结.md", "Day6_Verification.md", "Day1-6_学习总结.md"):
                 continue
             documents.append({
                 "source": path.relative_to(root).as_posix(),

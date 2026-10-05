@@ -6,6 +6,19 @@ from src.rag.citations import make_citation
 def chunk_document(document: dict, max_chars: int = 900, overlap_chars: int = 150) -> list[dict]:
     if max_chars <= 0 or not 0 <= overlap_chars < max_chars:
         raise ValueError("chunk 大小必须为正，overlap 必须小于 chunk 大小。")
+    if document["source_type"] == "pdf":
+        if document.get("text_extraction_status") == "empty_or_scanned":
+            return []
+        # Reuse line aggregation within ONE page; never manufacture stable PDF line citations.
+        chunks = chunk_document({**document, "source_type": "public"}, max_chars, overlap_chars)
+        for chunk in chunks:
+            chunk["chunk_id"] = f"paper:{document['paper_id']}:p{document['page_number']}:{chunk['start_line']}-{chunk['end_line']}"
+            chunk.pop("start_line")
+            chunk.pop("end_line")
+            chunk.update({key: document[key] for key in ("source_type", "paper_id", "title", "page_number")})
+            chunk["heading"] = document["title"]
+            chunk["citation"] = f"[paper:{document['paper_id']}:p{document['page_number']}]"
+        return chunks
     lines = document["text"].splitlines()
     if not lines or not document["text"].strip():
         return []

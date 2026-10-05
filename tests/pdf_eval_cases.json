@@ -1,0 +1,10 @@
+[
+  {"question": "What finite difference discretization and orthorhombic cells does MuMax3 use?", "paper_id": "mumax3", "acceptable_pages": [2], "keywords": ["orthorhombic", "center of each cell"]},
+  {"question": "Which OVF data format is used for input and output of space-dependent quantities?", "paper_id": "mumax3", "acceptable_pages": [3], "keywords": ["OVF", "OOMMF"]},
+  {"question": "How is magnetostatic convolution FFT-accelerated with a demagnetizing kernel?", "paper_id": "mumax3", "acceptable_pages": [4], "keywords": ["FFT", "convolution"]},
+  {"question": "Which explicit Runge-Kutta method is the default for dynamical simulations RK45 Dormand-Prince?", "paper_id": "mumax3", "acceptable_pages": [12], "keywords": ["RK45", "Dormand", "default"]},
+  {"question": "Which solver is used internally by Relax near equilibrium RK23?", "paper_id": "mumax3", "acceptable_pages": [13], "keywords": ["Relax", "RK23"]},
+  {"question": "What does standard problem 4 consider for dynamic magnetization reversal and zero crossing?", "paper_id": "mumax3", "acceptable_pages": [15,16], "keywords": ["standard problem", "crosses zero"]},
+  {"question": "What is the plot of Mozart's opera The Magic Flute?", "paper_id": "mumax3", "acceptable_pages": [], "keywords": []},
+  {"question": "论文给出 GPT-6 训练参数与量子霍尔电阻标准了吗？", "paper_id": "mumax3", "acceptable_pages": [], "keywords": []}
+]

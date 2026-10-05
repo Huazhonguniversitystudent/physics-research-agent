@@ -4,7 +4,7 @@
 
 一个面向物理科研场景的 AI Agent 学习与实践项目。
 
-截至 Day 5，项目已支持本地文档 RAG v1 与可核对行号引用；Day 1–4 学习记录中的“没有 RAG”是历史状态。
+截至 Day 6，项目已支持 Markdown/TXT 与文本型 PDF RAG、行号/页码引用；Day 1–4 学习记录中的“没有 RAG”是历史状态。
 
 ## 为什么做这个项目
 
@@ -107,7 +107,7 @@ RAG = Retrieval-Augmented Generation。当前流程是 Markdown/TXT → 按标�
 
 相似度为 cosine similarity，当前 threshold=0.05，并要求查询 n-gram 词表覆盖率至少 0.50；去掉少量“项目文档/是什么/给出处”通用问句壳再计算。通过固定正负例校准，这是简单工程 baseline，不是严格置信概率。只有少数通用词匹配时不应编答案。
 
-索引既有六份 Day 2–4 中文 docs、Day 5 学习文档、knowledge/public 与 README；允许用户主动放置 knowledge/local 的 MD/TXT。每次检索从当前文件重建小索引，无磁盘数据库，避免旧缓存。Day5_Verification 和 Day1-5 总结属于本轮验收材料，不索引用来回答自身评估问题。
+索引既有六份 Day 2–4 中文 docs、Day 5/6 学习文档、knowledge/public 与 README；允许用户主动放置 knowledge/local 的 MD/TXT。每次检索从当前文件重建小索引，无磁盘数据库，避免旧缓存。Day5/6_Verification 和 Day1-5/6 总结属于验收材料，不索引用来回答自身评估问题。旧文档的 9 documents / 112 chunks 是 Day 5 快照，当前计数见 Day 6 验收。
 
 ```powershell
 conda run --no-capture-output -n agent python run_rag.py
@@ -134,7 +134,40 @@ conda run --no-capture-output -n agent python scripts/evaluate_rag.py
 
 完整解释见 [Day 5 学习文档](docs/Day5_RAG_and_Citations.md)，结果见 [Day 5 验收](docs/Day5_Verification.md)，自包含回顾见 [Day 1–5 总结](docs/Day1-5_学习总结.md)。
 
+## PDF 论文问答
+
+公开论文 PDF → PyMuPDF → 逐页文本 → page-aware chunks → 同一个 TF-IDF → Top-K → DeepSeek → 页码引用。
+
+只读 `knowledge/public/papers/` 和用户授权的 `knowledge/local/papers/`。PDF 每页独立分块，目标 900 字符、overlap 150；整行很长时允许超出目标。内部 chunk_id 区分片段，对外 citation 如 `[paper:mumax3:p12]`，页码是 PDF 阅读器从 1 开始的页序，不伪造稳定行号。Markdown 继续使用原行号 citation；旧文本 source_type=public/local 保持兼容，PDF 使用 source_type=pdf。
+
+`search_knowledge_base` 可选 `scope=all/project_docs/papers`；论文范围可指定 `paper_id`。`list_knowledge_papers` 列出论文，`inspect_paper` 返回基本信息、页数、提取状态和短预览。模型不能传任意 PDF 路径。公开目录 [README](knowledge/public/papers/README.md) 与 sources.json 记录手动下载入口；克隆仓库后第三方 PDF 不会自动出现。没有自动下载器。
+
+```powershell
+conda run --no-capture-output -n agent python scripts/inspect_pdf.py mumax3
+conda run --no-capture-output -n agent python run_pdf_rag.py
+conda run --no-capture-output -n agent python scripts/evaluate_pdf_rag.py
+conda run --no-capture-output -n agent python scripts/evaluate_rag.py --include-papers
+```
+
+run_pdf_rag 只检索，不调用 DeepSeek。英文论文用英文关键词效果更好，中文提取能力不等于跨语言语义检索。PDF evaluation 仅统计页 Hit@4 与负例拒绝，不是模型回答准确率。
+
+当前 v1 只支持文本型 PDF，扫描页/少字页记为 empty_or_scanned，无 OCR；仍是 TF-IDF，不是 embedding，更不重新训练模型。双栏、图表和公式解析有限，需要人工核对。PDF 也只是 UNTRUSTED DATA，不能执行里面的指令。
+
+PDF 本体默认不提交 GitHub，来源元数据可以提交；私有论文发送 API 前必须确认授权。公开可访问不自动意味着允许再分发，未知许可证不能伪称 CC。引用校验只验证本轮返回过的页码身份，不验证每个主张的真实性。
+
+学习解释见 [Day 6 PDF RAG](docs/Day6_PDF_RAG.md)，实际结果见 [Day 6 验收](docs/Day6_Verification.md)，自包含回顾见 [Day 1–6 总结](docs/Day1-6_学习总结.md)。
+
+## 三类事实来源
+
+1. 当前科研数据 → Python tools，不能用历史文档代替重新计算。
+2. 项目历史/实现 → Markdown RAG，引用真实文件行号。
+3. 论文内容 → PDF RAG，引用实际页码。
+
+综合问题分别使用论文证据和当前数据；两条曲线不同不能自动证明软件精度高低或约 1 ps 差异的机制。证据不足明确拒绝归因。
+
 ## 项目结构
+
+Day 6 新增 `src/rag/pdf_documents.py`、`run_pdf_rag.py`、`scripts/inspect_pdf.py`、`scripts/evaluate_pdf_rag.py`、自产 PDF 测试生成器和论文来源记录。
 
 Day 5 新增 `src/rag/{documents,chunking,retriever,citations}.py`、`run_rag.py`、`scripts/evaluate_rag.py`、`tests/test_rag.py`、`tests/rag_eval_cases.json` 和 `knowledge/{public,local}/`。
 
@@ -146,7 +179,7 @@ physics-research-agent/
 ├── requirements.txt
 ├── main.py                      # Day 1 Python 基础练习
 ├── first_llm.py                 # Day 1 LLM 调用
-├── run_agent.py                 # Day 5 CLI 入口
+├── run_agent.py                 # Day 6 CLI 入口
 ├── config/                     # example 模板可提交；local 注册表不提交
 ├── data/
 │   ├── examples/                # 可公开的 SYNTHETIC CSV 与说明
@@ -250,6 +283,7 @@ python scripts/generate_synthetic_data.py
 - OpenAI Python SDK
 - python-dotenv
 - pandas / matplotlib
+- scikit-learn / PyMuPDF
 - Git / GitHub
 
 ## Roadmap（学习路线）
@@ -258,15 +292,19 @@ python scripts/generate_synthetic_data.py
 - [x] CLI
 - [x] Tool Calling
 - [x] 简单 Agent Loop
-- [x] 科研 CSV
+- [x] Scientific Tools（科研 CSV）
 - [x] switching time
 - [x] 科研绘图
 - [ ] 多轮上下文
 - [x] 真实 MuMax3 / COMSOL CSV 数据适配与结果复现
-- [ ] PDF
-- [x] RAG v1：字符级 TF-IDF
-- [x] 来源行号引用与引用校验
-- [ ] embedding retrieval
+- [x] PDF RAG
+- [x] Page Citation
+- [ ] OCR
+- [x] Markdown RAG v1：字符级 TF-IDF
+- [x] Citation：来源行号引用与引用校验
+- [ ] Semantic Embedding（embedding retrieval）
+- [ ] Holdout Evaluation
+- [ ] Deployment
 - [ ] Evaluation dashboard
 - [ ] 文献检索
 - [ ] Web UI
