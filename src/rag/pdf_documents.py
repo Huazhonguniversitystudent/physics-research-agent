@@ -25,10 +25,12 @@ def _safe_path(path: str, project_root: Path) -> Path:
     raise ValueError("PDF 最终路径必须位于允许的论文目录，禁止符号链接偏移。")
 
 
-def list_knowledge_papers(project_root: Path = PROJECT_ROOT) -> list[dict]:
+def list_knowledge_papers(project_root: Path = PROJECT_ROOT, include_local: bool = True) -> list[dict]:
     root = project_root.resolve()
     papers = []
     for directory in PDF_ROOTS:
+        if directory == "knowledge/local/papers" and not include_local:
+            continue
         allowed = root / directory
         if not allowed.is_dir() or allowed.resolve() != allowed:
             continue
@@ -90,8 +92,8 @@ def load_pdf_document(path: str, *, project_root: Path = PROJECT_ROOT, metadata:
     return pages
 
 
-def load_pdf_documents(project_root: Path = PROJECT_ROOT, paper_id: str | None = None) -> list[dict]:
-    papers = list_knowledge_papers(project_root)
+def load_pdf_documents(project_root: Path = PROJECT_ROOT, paper_id: str | None = None, include_local: bool = True) -> list[dict]:
+    papers = list_knowledge_papers(project_root, include_local)
     if paper_id is not None:
         papers = [paper for paper in papers if paper["paper_id"] == paper_id]
         if not papers:
@@ -100,8 +102,8 @@ def load_pdf_documents(project_root: Path = PROJECT_ROOT, paper_id: str | None =
             for page in load_pdf_document(paper["source"], project_root=project_root, metadata=paper)]
 
 
-def inspect_paper(paper_id: str, project_root: Path = PROJECT_ROOT) -> dict:
-    papers = [paper for paper in list_knowledge_papers(project_root) if paper["paper_id"] == paper_id]
+def inspect_paper(paper_id: str, project_root: Path = PROJECT_ROOT, include_local: bool = True) -> dict:
+    papers = [paper for paper in list_knowledge_papers(project_root, include_local) if paper["paper_id"] == paper_id]
     if not papers or not papers[0]["local_available"]:
         raise ValueError("未找到可读取的论文，请先列出论文并确认本地文件存在。")
     paper = papers[0]

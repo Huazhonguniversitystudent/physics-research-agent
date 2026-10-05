@@ -8,6 +8,7 @@ from openai import OpenAI
 from src.rag.citations import validate_answer_citations
 from src.rag.retriever import search_knowledge_base
 from src.rag.pdf_documents import inspect_paper, list_knowledge_papers
+from src.web.public_mode import public_datasets, public_tool_schemas, sanitize_trace, validate_public_tool_call
 
 from src.tools.calculator import calculate
 from src.tools.physics import electron_energy_from_voltage
@@ -52,6 +53,11 @@ SYSTEM_INSTRUCTIONS = (
     "综合问题分别给论文页码证据与当前 Python 数据来源，不能用论文替代 CSV 实算。"
     "证据不足就说当前知识库没有足够证据，不拿常识冒充文档内容。当前能力以 README/Day6 记录为准，Day1–4 没有 RAG 是历史状态。"
     "sorted 只表示是否发生重新排序，false 表示无需重排；不能从采样差异推断时间差成因，也不能把文档未提供某项证据说成现实中不存在。"
+)
+
+PUBLIC_DEMO_INSTRUCTIONS = (
+    "当前是 PUBLIC DEMO MODE。只能使用公开项目文档、公开论文和 synthetic_micromagnetics.csv；"
+    "不得请求或推断私人 registry、data/local、knowledge/local、私人论文、旧私人输出或本机路径。"
 )
 
 TOOLS = [
@@ -261,9 +267,21 @@ def create_client() -> OpenAI:
     return OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
 
 
-def execute_tool(name: str, arguments: dict[str, Any]) -> Any:
+def execute_tool(name: str, arguments: dict[str, Any], *, public_mode: bool = False) -> Any:
     if name not in TOOL_FUNCTIONS:
         raise ValueError(f"未知工具：{name}")
+    if public_mode:
+        validate_public_tool_call(name, arguments)
+        if "dataset" in arguments:
+            arguments = {**arguments, "dataset": "data/examples/synthetic_micromagnetics.csv"}
+        if name == "list_datasets":
+            return public_datasets()
+        if name == "search_knowledge_base":
+            return search_knowledge_base(**arguments, public_only=True)
+        if name == "list_knowledge_papers":
+            return list_knowledge_papers(include_local=False)
+        if name == "inspect_paper":
+            return inspect_paper(**arguments, include_local=False)
     return TOOL_FUNCTIONS[name](**arguments)
 
 
@@ -272,7 +290,9 @@ def run_agent(
     *,
     client: OpenAI | None = None,
     show_steps: bool = True,
-) -> str:
+    public_mode: bool = False,
+    collect_trace: bool = False,
+) -> str | dict:
     if not question.strip():
         raise ValueError("问题不能为空。")
 
@@ -281,13 +301,17 @@ def run_agent(
     retrieval_used = False
     paper_retrieval_used = False
     allowed_citations: set[str] = set()
+    trace: list[dict] = []
+
+    def finish(answer: str) -> str | dict:
+        return {"answer": answer, "trace": sanitize_trace(trace)} if collect_trace else answer
 
     for _ in range(MAX_STEPS):
         request: dict[str, Any] = {
             "model": MODEL,
-            "instructions": SYSTEM_INSTRUCTIONS,
+            "instructions": SYSTEM_INSTRUCTIONS + (PUBLIC_DEMO_INSTRUCTIONS if public_mode else ""),
             "input": conversation,
-            "tools": TOOLS,
+            "tools": public_tool_schemas(TOOLS) if public_mode else TOOLS,
         }
 
         response = api_client.responses.create(**request)
@@ -298,14 +322,14 @@ def run_agent(
                 if retrieval_used:
                     if not allowed_citations:
                         if paper_retrieval_used:
-                            return "当前检索到的论文片段不足以支持这个结论。"
-                        return "当前知识库没有足够证据回答该文档问题。"
+                            return finish("当前检索到的论文片段不足以支持这个结论。")
+                        return finish("当前知识库没有足够证据回答该文档问题。")
                     validation = validate_answer_citations(response.output_text, allowed_citations)
                     if not validation["valid"]:
                         if show_steps:
                             print("[RAG warning] 回答缺失引用或含未检索到的引用，已拒绝接受。")
-                        return "RAG 回答引用校验未通过（缺失或未检索到的引用），未接受该回答，请重新提问。"
-                return response.output_text
+                        return finish("RAG 回答引用校验未通过（缺失或未检索到的引用），未接受该回答，请重新提问。")
+                return finish(response.output_text)
             raise RuntimeError("模型没有返回文本或工具调用。")
 
         tool_outputs = []
@@ -316,7 +340,7 @@ def run_agent(
                 if not isinstance(arguments, dict):
                     arguments = {}
                     raise ValueError("工具参数必须是 JSON 对象。")
-                result = execute_tool(tool_call.name, arguments)
+                result = execute_tool(tool_call.name, arguments, public_mode=public_mode)
             except OSError:
                 result = {"error": "工具文件操作失败，请检查数据或输出目录的访问权限。"}
             except (json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
@@ -327,6 +351,9 @@ def run_agent(
                 retrieval_used = True
                 paper_retrieval_used = paper_retrieval_used or arguments.get("scope") == "papers"
                 allowed_citations.update(item["citation"] for item in result.get("results", []))
+            trace.append({"tool": tool_call.name, "arguments": arguments, "result": result,
+                          "citations": [item["citation"] for item in result.get("results", [])]
+                          if isinstance(result, dict) else []})
             if show_steps:
                 print(f"[Agent] 调用工具：{tool_call.name}")
                 print(f"[Agent] 参数：{tool_call.arguments}")
@@ -343,4 +370,4 @@ def run_agent(
         conversation.extend(response.output)
         conversation.extend(tool_outputs)
 
-    return f"Agent 在 {MAX_STEPS} 步内未能完成任务，请尝试简化问题。"
+    return finish(f"Agent 在 {MAX_STEPS} 步内未能完成任务，请尝试简化问题。")

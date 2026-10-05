@@ -68,17 +68,17 @@ class KnowledgeRetriever:
         return result
 
 
-def load_knowledge_documents(scope: str = "all", paper_id: str | None = None, project_root=PROJECT_ROOT) -> list[dict]:
+def load_knowledge_documents(scope: str = "all", paper_id: str | None = None, project_root=PROJECT_ROOT, public_only: bool = False) -> list[dict]:
     if scope not in ("all", "project_docs", "papers"):
         raise ValueError("scope 必须是 all、project_docs 或 papers。")
     if paper_id is not None and scope != "papers":
         raise ValueError("paper_id 仅适用于 papers scope。")
-    documents = load_documents(project_root) if scope != "papers" else []
+    documents = load_documents(project_root, include_local=not public_only) if scope != "papers" else []
     if scope != "project_docs":
-        documents.extend(load_pdf_documents(project_root, paper_id))
+        documents.extend(load_pdf_documents(project_root, paper_id, include_local=not public_only))
     return documents
 
 
-def search_knowledge_base(query: str, top_k: int = 4, scope: str = "all", paper_id: str | None = None) -> dict:
+def search_knowledge_base(query: str, top_k: int = 4, scope: str = "all", paper_id: str | None = None, *, public_only: bool = False) -> dict:
     # Small corpus: rebuild from current files, avoiding a stale on-disk index.
-    return KnowledgeRetriever(load_knowledge_documents(scope, paper_id)).search(query, top_k)
+    return KnowledgeRetriever(load_knowledge_documents(scope, paper_id, public_only=public_only)).search(query, top_k)

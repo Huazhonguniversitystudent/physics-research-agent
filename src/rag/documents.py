@@ -3,13 +3,21 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 ALLOWED_ROOTS = ("docs", "knowledge/public", "knowledge/local")
+NON_KNOWLEDGE_DOCS = frozenset({
+    "Day5_Verification.md", "Day1-5_学习总结.md", "Day6_Verification.md", "Day1-6_学习总结.md",
+    "Day7_Verification.md", "Day7_Holdout_Evaluation.md", "Day7_Portfolio_and_Evaluation.md", "Day1-7_学习总结.md",
+    "Demo_Video_Script.md", "GitHub_Profile_Setup.md", "Resume_Project_Description.md", "Interview_Prep.md",
+    "Core_Code_Reading_Guide.md", "Internship_Search_Keywords.md", "Week1_Final_Checklist.md",
+})
 
 
-def load_documents(project_root: Path = PROJECT_ROOT) -> list[dict]:
+def load_documents(project_root: Path = PROJECT_ROOT, include_local: bool = True) -> list[dict]:
     """Read only allowed project text files; never execute document content."""
     root = project_root.resolve()
     documents = []
     for directory in ALLOWED_ROOTS:
+        if directory == "knowledge/local" and not include_local:
+            continue
         allowed = root / directory
         if not allowed.is_dir() or allowed.resolve() != allowed:
             continue
@@ -20,8 +28,8 @@ def load_documents(project_root: Path = PROJECT_ROOT) -> list[dict]:
                 continue
             if path.resolve() != path.absolute():
                 continue
-            # Do not retrieve evaluation transcripts as evidence for their own tests.
-            if directory == "docs" and path.name in ("Day5_Verification.md", "Day1-5_学习总结.md", "Day6_Verification.md", "Day1-6_学习总结.md"):
+            # Evaluation transcripts and portfolio coaching are not project-fact evidence.
+            if directory == "docs" and path.name in NON_KNOWLEDGE_DOCS:
                 continue
             documents.append({
                 "source": path.relative_to(root).as_posix(),

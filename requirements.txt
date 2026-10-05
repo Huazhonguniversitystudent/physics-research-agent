@@ -4,3 +4,4 @@ pandas==3.0.6
 matplotlib==3.11.2
 scikit-learn==1.9.1
 PyMuPDF==1.28.2
+streamlit==1.65.0

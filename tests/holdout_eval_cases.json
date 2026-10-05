@@ -1,0 +1,104 @@
+[
+  {
+    "id": "route_normal",
+    "category": "routing",
+    "query": "Why does the sky look blue on a clear day? Give a short conceptual explanation.",
+    "expected_tool_family": "normal"
+  },
+  {
+    "id": "route_calculator",
+    "category": "routing",
+    "query": "Calculate the exact value of (17^3 - 5) / 6.",
+    "expected_tool_family": "calculator"
+  },
+  {
+    "id": "route_project_docs",
+    "category": "routing",
+    "query": "In this repository, how is a Python tool result matched back to the model's original function request? Cite the project documentation.",
+    "expected_tool_family": "project_docs"
+  },
+  {
+    "id": "route_papers",
+    "category": "routing",
+    "query": "According to the MuMax3 paper, why do thermal fluctuations require a fixed time step? Cite the PDF page.",
+    "expected_tool_family": "papers"
+  },
+  {
+    "id": "docs_call_id",
+    "category": "project_docs",
+    "query": "模型返回 function_call 后，哪个字段把 Python 的回传结果关联到原请求？",
+    "expected_sources": ["docs/Day2_Tool_Calling.md"]
+  },
+  {
+    "id": "docs_alias_boundary",
+    "category": "project_docs",
+    "query": "本地数据登记表为什么只让模型看到 alias，而不让它接触 Windows 绝对路径？",
+    "expected_sources": ["docs/Day4_Real_Scientific_Data.md"]
+  },
+  {
+    "id": "docs_page_boundary",
+    "category": "project_docs",
+    "query": "为什么论文分块必须在页边界重置，而不能把相邻两页拼成同一个片段？",
+    "expected_sources": ["docs/Day6_PDF_RAG.md"]
+  },
+  {
+    "id": "docs_entailment",
+    "category": "project_docs",
+    "query": "一个 citation 字符串通过后端身份检查后，仍然需要人工确认什么？",
+    "expected_sources": ["docs/Day6_PDF_RAG.md", "docs/Day1-6_学习总结.md"]
+  },
+  {
+    "id": "pdf_thermal_solver",
+    "category": "pdf",
+    "query": "Why can only Euler and Heun solvers be used when the thermal field is enabled?",
+    "paper_id": "mumax3",
+    "acceptable_pages": [10]
+  },
+  {
+    "id": "pdf_zhang_li",
+    "category": "pdf",
+    "query": "For what cell configuration is the Zhang-Li spin-transfer torque described as applicable?",
+    "paper_id": "mumax3",
+    "acceptable_pages": [11]
+  },
+  {
+    "id": "pdf_moving_frame",
+    "category": "pdf",
+    "query": "How does the moving-frame extension follow a domain wall without simulating an entire long nanowire?",
+    "paper_id": "mumax3",
+    "acceptable_pages": [17]
+  },
+  {
+    "id": "pdf_grid_performance",
+    "category": "pdf",
+    "query": "Why should prime-number grid sizes be avoided for MuMax3 performance, and which sizes are preferred?",
+    "paper_id": "mumax3",
+    "acceptable_pages": [19]
+  },
+  {
+    "id": "negative_pdf_en",
+    "category": "negative",
+    "query": "Does this GPU-accelerated MuMax3 paper report a superconducting-qubit coherence time measured on a GTX TITAN?",
+    "scope": "papers",
+    "paper_id": "mumax3"
+  },
+  {
+    "id": "negative_pdf_zh",
+    "category": "negative",
+    "query": "论文在 GPU 性能章节是否给出了 Higgs 玻色子的质量测量值？",
+    "scope": "papers",
+    "paper_id": "mumax3"
+  },
+  {
+    "id": "negative_docs_training",
+    "category": "negative",
+    "query": "项目的 Tool Calling 是否记录了 Transformer 原始训练语料如何决定函数路由？",
+    "scope": "project_docs"
+  },
+  {
+    "id": "negative_docs_kubernetes",
+    "category": "negative",
+    "query": "项目文档是否说明 Kubernetes service mesh 如何给 Agent Loop 做负载均衡？",
+    "scope": "project_docs"
+  }
+]
