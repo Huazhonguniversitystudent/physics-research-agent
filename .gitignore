@@ -17,3 +17,9 @@ venv/
 # OS
 .DS_Store
 Thumbs.db
+
+# Private research data and generated outputs
+data/local/*
+!data/local/.gitkeep
+outputs/*
+!outputs/.gitkeep

@@ -7,6 +7,12 @@ from openai import OpenAI
 
 from src.tools.calculator import calculate
 from src.tools.physics import electron_energy_from_voltage
+from src.tools.scientific_data import (
+    calculate_switching_time,
+    inspect_dataset,
+    list_datasets,
+    plot_dataset,
+)
 
 
 MODEL = "deepseek-flash"
@@ -16,6 +22,12 @@ SYSTEM_INSTRUCTIONS = (
     "你是面向物理科研学习者的助手。概念解释应直接回答，不要为了补充数值例子而调用工具。"
     "只有用户明确要求数值结果，或不计算就无法完成任务时，才调用合适的工具；"
     "需要计算时不要心算或编造工具结果。"
+    "分析 CSV 前先 inspect_dataset 确认结构，不知道数据集时先 list_datasets。"
+    "不得编造数据或列名，缺失数据时明确无法确定；区分合成演示和本地数据。"
+    "遵循工具中的 data_note 和 sorting_note；过零时间不代表磁化已达到 +1。"
+    "不要推断数据没有支持的物理机制或模拟软件差异。"
+    "科研回答简要包含来源、方法、结果和解释，差值也用 calculator 计算。"
+    "参数已确认的独立工具请求可同轮发出，尽量在 5 轮内完成任务。"
 )
 
 TOOLS = [
@@ -51,7 +63,65 @@ TOOLS = [
             "additionalProperties": False,
         },
     },
+    {
+        "type": "function",
+        "name": "list_datasets",
+        "description": "列出当前可以分析的科研 CSV 数据集，返回相对路径、大小及合成数据标记。",
+        "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
+    },
+    {
+        "type": "function",
+        "name": "inspect_dataset",
+        "description": "在分析科研 CSV 前检查其列名、类型、行数、前 5 行和缺失值。",
+        "parameters": {
+            "type": "object",
+            "properties": {"dataset": {"type": "string", "description": "CSV 文件名或 data/examples、data/local 下的相对路径。"}},
+            "required": ["dataset"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "type": "function",
+        "name": "calculate_switching_time",
+        "description": "计算 mz 指定方向首次穿过 0 的时间，使用相邻点线性插值；默认负到正。",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "dataset": {"type": "string", "description": "允许目录内的 CSV 名称或相对路径。"},
+                "time_column": {"type": "string", "description": "inspect 确认的时间列名，_ps/_ns 后缀用于识别单位。"},
+                "mz_column": {"type": "string", "description": "inspect 确认的磁化列名。"},
+                "direction": {"type": "string", "enum": ["negative_to_positive", "positive_to_negative"]},
+            },
+            "required": ["dataset", "time_column", "mz_column"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "type": "function",
+        "name": "plot_dataset",
+        "description": "根据 CSV 指定列绘图，将 PNG 保存到 outputs/plots，返回相对路径。",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "dataset": {"type": "string", "description": "允许目录内的 CSV 名称或相对路径。"},
+                "x_column": {"type": "string"},
+                "y_columns": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+                "output_name": {"type": "string", "description": "仅字母、数字、下划线、连字符，可带 .png；不能包含路径。"},
+            },
+            "required": ["dataset", "x_column", "y_columns", "output_name"],
+            "additionalProperties": False,
+        },
+    },
 ]
+
+TOOL_FUNCTIONS = {
+    "calculator": calculate,
+    "electron_energy_from_voltage": electron_energy_from_voltage,
+    "list_datasets": list_datasets,
+    "inspect_dataset": inspect_dataset,
+    "calculate_switching_time": calculate_switching_time,
+    "plot_dataset": plot_dataset,
+}
 
 
 def create_client() -> OpenAI:
@@ -64,11 +134,9 @@ def create_client() -> OpenAI:
 
 
 def execute_tool(name: str, arguments: dict[str, Any]) -> Any:
-    if name == "calculator":
-        return calculate(arguments["expression"])
-    if name == "electron_energy_from_voltage":
-        return electron_energy_from_voltage(arguments["voltage_v"])
-    raise ValueError(f"未知工具：{name}")
+    if name not in TOOL_FUNCTIONS:
+        raise ValueError(f"未知工具：{name}")
+    return TOOL_FUNCTIONS[name](**arguments)
 
 
 def run_agent(
@@ -106,6 +174,8 @@ def run_agent(
                 if not isinstance(arguments, dict):
                     raise ValueError("工具参数必须是 JSON 对象。")
                 result = execute_tool(tool_call.name, arguments)
+            except OSError:
+                result = {"error": "工具文件操作失败，请检查数据或输出目录的访问权限。"}
             except (json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
                 result = {"error": str(exc)}
 
